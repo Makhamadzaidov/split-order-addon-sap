@@ -1,10 +1,9 @@
-﻿using SAPbouiCOM.Framework;
-using System;
-using System.Linq;
+using SAPbouiCOM.Framework;
 using SplitOrderAddon.Models;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
+using System.Linq;
 
 namespace SplitOrderAddon
 {
@@ -12,7 +11,6 @@ namespace SplitOrderAddon
     {
         static SAPbobsCOM.Company oCom;
         static SAPbobsCOM.Recordset oRS;
-        private static string path = "log.txt";
 
         [STAThread]
         static void Main(string[] args)
@@ -124,6 +122,9 @@ namespace SplitOrderAddon
                     string docNum = dbDataSource.GetValue("DocNum", 0).ToString();
                     Console.WriteLine("Document Number: " + docNum);
 
+                    oRS.DoQuery($"SELECT T0.\"DocEntry\" FROM ORDR T0 WHERE T0.\"DocNum\" = {docNum}");
+                    var docEntry = int.Parse(oRS.Fields.Item("DocEntry").Value.ToString());
+
                     foreach (var product in groupedItems)
                     {
                         SAPbobsCOM.Documents salesOrder = (SAPbobsCOM.Documents)oCom.GetBusinessObject(SAPbobsCOM.BoObjectTypes.oOrders);
@@ -134,6 +135,7 @@ namespace SplitOrderAddon
                         salesOrder.DocDueDate = partner.DocDueDate;
                         salesOrder.TaxDate = partner.TaxDate;
                         salesOrder.NumAtCard = docNum;
+                        salesOrder.ImportFileNum = docEntry;
 
                         foreach (var item in product)
                         {
@@ -154,9 +156,6 @@ namespace SplitOrderAddon
                             int errorCode = oCom.GetLastErrorCode();
                             string error = oCom.GetLastErrorDescription();
 
-                            using (StreamWriter streamWriter = File.AppendText(Program.path))
-                                streamWriter.WriteLine($"{errorCode} {error}", 0);
-
                             Application.SBO_Application.StatusBar.SetSystemMessage("Ошибка при генерации", SAPbouiCOM.BoMessageTime.bmt_Short, SAPbouiCOM.BoStatusBarMessageType.smt_Error);
                         }
                         else
@@ -167,7 +166,7 @@ namespace SplitOrderAddon
 
                     if (flag1)
                     {
-                        Application.SBO_Application.StatusBar.SetSystemMessage("Произошли ошибки при генерации. Просмотрите логи чтобы их увидеть.", 
+                        Application.SBO_Application.StatusBar.SetSystemMessage("Произошли ошибки при генерации. Просмотрите логи чтобы их увидеть.",
                             SAPbouiCOM.BoMessageTime.bmt_Short, SAPbouiCOM.BoStatusBarMessageType.smt_Error);
                     }
                     else
@@ -175,17 +174,12 @@ namespace SplitOrderAddon
                         SAPbobsCOM.Documents sboPrClose = (SAPbobsCOM.Documents)oCom.GetBusinessObject(SAPbobsCOM.BoObjectTypes.oOrders);
                         sboPrClose.NumAtCard = docNum;
 
-                        oRS.DoQuery($"SELECT T0.\"DocEntry\" FROM ORDR T0 WHERE T0.\"DocNum\" = {docNum}");
-                        var docEntry = int.Parse(oRS.Fields.Item("DocEntry").Value.ToString());
-
                         sboPrClose.GetByKey(docEntry);
 
                         int res = sboPrClose.Close();
                         int resultClose = sboPrClose.Update();
 
-                        using (StreamWriter streamWriter = File.AppendText(Program.path))
-                            streamWriter.WriteLine(dbDataSource.GetValue((object)"DocEntry", 0));
-                        Application.SBO_Application.StatusBar.SetSystemMessage("Генерация успешно завершена", 
+                        Application.SBO_Application.StatusBar.SetSystemMessage("Генерация успешно завершена",
                             SAPbouiCOM.BoMessageTime.bmt_Short, Type: SAPbouiCOM.BoStatusBarMessageType.smt_Success);
                     }
                 }
